@@ -165,9 +165,9 @@ def analyze_ride(metrics: dict, models: list = None) -> str:
     """
     if models is None:
         models = [
-            "google/gemma-4-26b-a4b-it:free",
             "nvidia/nemotron-3.5-lightning:free",
-            "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free",  # confirm exact slug on openrouter.ai/models
+            "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free",
+            "openrouter/free",  # confirm exact slug on openrouter.ai/models
         ]
 
     payload = {
