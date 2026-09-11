@@ -18,9 +18,14 @@ from dotenv import load_dotenv
 
 load_dotenv()  # reads .env in the current directory and loads it into os.environ
 
+GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "")
+GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
+
 OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY", "")
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
 
+if not GROQ_API_KEY:
+    print("WARNING: GROQ_API_KEY environment variable is not set.")
 if not OPENROUTER_API_KEY:
     print("WARNING: OPENROUTER_API_KEY environment variable is not set.")
 
@@ -156,7 +161,87 @@ def build_user_prompt(metrics: dict) -> str:
         "\n\nWrite the coach summary now."
 
 
-def analyze_ride(metrics: dict, models: list = None) -> str:
+def analyze_ride(metrics: dict, groq_models: list = None, openrouter_models: list = None) -> str:
+    """
+    Tries Groq first (separate free-tier quota, much faster hardware, fixed
+    30 req/min limit — no shared-pool congestion like OpenRouter free models
+    have been hitting). Falls back to OpenRouter's multi-model chain only if
+    every Groq model fails or GROQ_API_KEY isn't set.
+    """
+    if GROQ_API_KEY:
+        try:
+            return _call_groq(metrics, groq_models)
+        except Exception as e:
+            print(f"Groq failed, falling back to OpenRouter: {e}")
+    else:
+        print("No GROQ_API_KEY set — skipping Groq, using OpenRouter directly.")
+
+    return _call_openrouter(metrics, openrouter_models)
+
+
+def _call_groq(metrics: dict, models: list = None) -> str:
+    """
+    Groq has no built-in multi-model fallback like OpenRouter's `models`
+    array, so we loop through the list ourselves and try each in order.
+    Model IDs churn on Groq's catalog — verify current ones at
+    console.groq.com/docs/models before relying on this long-term.
+    """
+    if models is None:
+        models = [
+            "openai/gpt-oss-120b",
+            "qwen/qwen3.8-27b",
+            "llama-3.3-70b-versatile",
+        ]
+
+    headers = {
+        "Authorization": f"Bearer {GROQ_API_KEY}",
+        "Content-Type": "application/json",
+    }
+
+    last_error = None
+    for model in models:
+        payload = {
+            "model": model,
+            "messages": [
+                {"role": "system", "content": SYSTEM_PROMPT},
+                {"role": "user", "content": build_user_prompt(metrics)},
+            ],
+            "temperature": 0.7,
+            "max_tokens": 1200,
+        }
+        # gpt-oss models on Groq are reasoning models — hide the reasoning
+        # trace from the output so it doesn't eat the token budget or leak
+        # into the response. Non-reasoning models ignore this harmlessly.
+        if "gpt-oss" in model:
+            payload["reasoning_format"] = "hidden"
+
+        max_retries = 3
+        for attempt in range(max_retries):
+            resp = requests.post(GROQ_URL, headers=headers, data=json.dumps(payload))
+            if resp.status_code == 429:
+                wait = 2 ** attempt
+                print(f"Groq rate limited on {model} (attempt {attempt + 1}/{max_retries}). Waiting {wait}s...")
+                time.sleep(wait)
+                continue
+            if not resp.ok:
+                last_error = f"{model} -> {resp.status_code}: {resp.text}"
+                print(f"Groq error: {last_error}")
+                break  # try next model, don't keep retrying a hard failure
+            result = resp.json()
+            if "choices" not in result or not result["choices"]:
+                last_error = f"{model} -> no choices in response: {result}"
+                print(f"Groq error: {last_error}")
+                break
+            print(f"(answered by: groq/{model})")
+            content = result["choices"][0]["message"]["content"]
+            return _clean_response_text(content)
+        else:
+            last_error = f"{model} -> still rate-limited after retries"
+
+    raise RuntimeError(f"All Groq models failed. Last error: {last_error}")
+
+
+def _call_openrouter(metrics: dict, models: list = None) -> str:
     """
     models: priority-ordered list of OpenRouter model IDs. OpenRouter tries
     them in order and automatically falls back to the next one on error
@@ -167,7 +252,7 @@ def analyze_ride(metrics: dict, models: list = None) -> str:
         models = [
             "nvidia/nemotron-3.5-lightning:free",
             "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free",
-            "openrouter/free",  # confirm exact slug on openrouter.ai/models
+            "openrouter/free",
         ]
 
     payload = {
