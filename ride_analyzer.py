@@ -252,6 +252,7 @@ def _call_openrouter(metrics: dict, models: list = None) -> str:
         models = [
             "nvidia/nemotron-3.5-lightning:free",
             "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free",
+            "openrouter/free",
         ]
 
     payload = {
