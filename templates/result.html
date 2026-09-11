@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Ride Analyzer — Result</title>
+  <style>
+    body {
+      font-family: -apple-system, Segoe UI, Roboto, sans-serif;
+      max-width: 640px;
+      margin: 60px auto;
+      padding: 0 20px;
+      color: #1a1a1a;
+      background: #fafafa;
+    }
+    h1 { font-size: 1.4rem; margin-bottom: 4px; }
+    p.filename { color: #888; margin-top: 0; font-size: 0.85rem; }
+    .summary-card {
+      background: white;
+      border-left: 4px solid #d64545;
+      border-radius: 8px;
+      padding: 22px 24px;
+      margin: 24px 0;
+      line-height: 1.6;
+      white-space: pre-wrap;
+    }
+    .warnings {
+      background: #fff8e6;
+      color: #7a5b00;
+      padding: 12px 16px;
+      border-radius: 6px;
+      font-size: 0.85rem;
+      margin-bottom: 20px;
+    }
+    .warnings ul { margin: 6px 0 0 18px; padding: 0; }
+    details {
+      background: white;
+      border: 1px solid #e0e0e0;
+      border-radius: 8px;
+      padding: 14px 18px;
+      margin-top: 10px;
+    }
+    summary { cursor: pointer; font-weight: 600; font-size: 0.9rem; }
+    table { width: 100%; border-collapse: collapse; margin-top: 12px; font-size: 0.9rem; }
+    td { padding: 5px 0; border-bottom: 1px solid #f0f0f0; }
+    td.value { text-align: right; font-weight: 600; }
+    a.back { display: inline-block; margin-top: 24px; color: #666; text-decoration: none; font-size: 0.9rem; }
+    a.back:hover { text-decoration: underline; }
+  </style>
+</head>
+<body>
+  <h1>Ride analysis</h1>
+  <p class="filename">{{ filename }}</p>
+
+  {% if warnings %}
+    <div class="warnings">
+      <strong>Notes on this file:</strong>
+      <ul>
+        {% for w in warnings %}
+          <li>{{ w }}</li>
+        {% endfor %}
+      </ul>
+    </div>
+  {% endif %}
+
+  <div class="summary-card">{{ summary }}</div>
+
+  <details>
+    <summary>Raw metrics</summary>
+    <table>
+      {% for key, value in metrics.items() %}
+        {% if key != "segments" %}
+        <tr>
+          <td>{{ key }}</td>
+          <td class="value">{{ value }}</td>
+        </tr>
+        {% endif %}
+      {% endfor %}
+    </table>
+  </details>
+
+  <a class="back" href="/">&larr; Analyze another ride</a>
+</body>
+</html>

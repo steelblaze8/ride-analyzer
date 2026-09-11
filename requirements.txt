@@ -1,0 +1,7 @@
+flask
+flask-limiter
+fitparse
+pandas
+requests
+gunicorn
+python-dotenv
